@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PISTEURS — Expédition Alpine v3.5</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+    :root {
+      --bg: #0b0f17;
+      --surface: #141b26;
+      --surface-elevated: #1d2636;
+      --border: rgba(255, 255, 255, 0.08);
+      --gold: #f4a261;
+      --gold-glow: rgba(244, 162, 97, 0.25);
+      --crimson: #e76f51;
+      --ice: #90e0ef;
+      --ice-glow: rgba(144, 224, 239, 0.35);
+      --text: #f8f9fa;
+      --text-subtle: #8d99ae;
+      --foret: #2d6a4f;
+      --foret-dark: #1b4332;
+      --riviere: #1d3557;
+      --riviere-dark: #102035;
+      --roche: #4a4e69;
+      --roche-dark: #22223b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh; overflow-x: hidden; display: flex; flex-direction: column; position: relative;
+    }
+
+    #storm-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.35; }
+
+    .app-shell {
+      position: relative; z-index: 1; max-width: 900px; margin: 0 auto; width: 100%;
+      padding: 16px; display: flex; flex-direction: column; gap: 14px; padding-bottom: 120px;
+    }
+
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(20, 27, 38, 0.85); backdrop-filter: blur(16px);
+      padding: 12px 18px; border-radius: 20px; border: 1px solid var(--border);
+    }
+    .brand-title {
+      font-family: 'Cabinet Grotesk', sans-serif; font-size: 1.3rem; font-weight: 900;
+      letter-spacing: 2px; color: var(--gold); text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .game-pills { display: flex; gap: 8px; align-items: center; }
+    .pill {
+      background: var(--surface-elevated); padding: 6px 12px; border-radius: 12px;
+      font-size: 0.75rem; font-weight: 700; border: 1px solid var(--border);
+      display: flex; align-items: center; gap: 6px; user-select: none;
+    }
+    .pill-clickable { cursor: pointer; transition: all 0.2s; }
+    .pill-clickable:active { transform: scale(0.95); }
+    .pill-mode { background: rgba(244, 162, 97, 0.15); border-color: var(--gold); color: var(--gold); }
+    .pill-reset { background: rgba(231, 111, 81, 0.15); border-color: var(--crimson); color: var(--crimson); }
+
+    .toast-overlay {
+      position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+      background: rgba(14, 19, 28, 0.96); backdrop-filter: blur(14px);
+      border: 2px solid var(--gold); border-radius: 18px; padding: 18px 26px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7); z-index: 99; pointer-events: none;
+      opacity: 0; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      max-width: 90vw; text-align: center;
+    }
+    .toast-overlay.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .toast-author { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
+    .toast-msg { font-size: 1.05rem; font-weight: 800; color: #fff; }
+    .toast-detail { font-size: 0.85rem; color: var(--text-subtle); }
+
+    .ticker-bar {
+      background: linear-gradient(90deg, rgba(29, 38, 54, 0.9), rgba(20, 27, 38, 0.9));
+      padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border);
+      border-left: 4px solid var(--gold); display: flex; justify-content: space-between;
+      align-items: center; font-size: 0.85rem; font-weight: 600;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .ticker-text { display: flex; align-items: center; gap: 8px; }
+    .ticker-pulse {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+      box-shadow: 0 0 10px var(--gold); animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
+
+    .trail-viewport {
+      background: rgba(14, 19, 28, 0.85); backdrop-filter: blur(12px); border-radius: 20px;
+      padding: 20px 14px; border: 1px solid var(--border); overflow-x: auto;
+      scroll-behavior: smooth; -webkit-overflow-scrolling: touch; min-height: 190px;
+    }
+    .trail-viewport::-webkit-scrollbar { height: 8px; }
+    .trail-viewport::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); border-radius: 4px; }
+    .trail-viewport::-webkit-scrollbar-thumb { background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 4px; }
+    .trail-viewport::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+    .trail-track { display: flex; gap: 12px; align-items: center; min-width: max-content; }
+
+    .tile-card {
+      width: 95px; height: 145px; border-radius: 14px; background: var(--surface);
+      border: 2px dashed rgba(255, 255, 255, 0.12); position: relative; padding: 10px 8px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); flex-shrink: 0;
+      overflow: hidden;
+    }
+    .tile-card.active { border-style: solid; }
+    .tile-card.FORET {
+      background: linear-gradient(180deg, var(--foret) 0%, var(--foret-dark) 100%);
+      border-color: rgba(67, 137, 58, 0.6); box-shadow: 0 8px 20px rgba(45, 106, 79, 0.2);
+    }
+    .tile-card.RIVIERE {
+      background: linear-gradient(180deg, var(--riviere) 0%, var(--riviere-dark) 100%);
+      border-color: rgba(43, 123, 176, 0.6); box-shadow: 0 8px 20px rgba(29, 53, 87, 0.2);
+    }
+    .tile-card.ROCHE {
+      background: linear-gradient(180deg, var(--roche) 0%, var(--roche-dark) 100%);
+      border-color: rgba(131, 146, 171, 0.6); box-shadow: 0 8px 20px rgba(74, 78, 105, 0.2);
+    }
+    .tile-card.summit {
+      border: 2px solid var(--gold) !important;
+      background: linear-gradient(180deg, #3d2b1f 0%, #1c1510 100%);
+      box-shadow: 0 0 25px var(--gold-glow);
+    }
+
+    .tile-card.freezing-zone {
+      border-color: var(--ice) !important;
+      box-shadow: 0 0 16px var(--ice-glow), inset 0 0 14px rgba(144, 224, 239, 0.25) !important;
+      animation: frostPulse 2.2s infinite ease-in-out;
+    }
+    .tile-card.freezing-zone::before {
+      content: "❄️"; position: absolute; top: 4px; right: 4px; font-size: 0.75rem;
+      opacity: 0.8; animation: spinSnow 6s linear infinite;
+    }
+
+    .tile-card.storm-animating {
+      animation: stormBlast 0.8s ease-in-out infinite alternate;
+    }
+
+    .tile-card.stormed {
+      background: #090c10 !important; border-color: rgba(231, 111, 81, 0.3) !important;
+      opacity: 0.35; filter: grayscale(1);
+    }
+
+    @keyframes frostPulse {
+      0%, 100% { border-color: rgba(144, 224, 239, 0.6); }
+      50% { border-color: #ffffff; box-shadow: 0 0 22px rgba(144, 224, 239, 0.55), inset 0 0 18px rgba(144, 224, 239, 0.4); }
+    }
+    @keyframes spinSnow { 100% { transform: rotate(360deg); } }
+    @keyframes stormBlast {
+      0% { transform: scale(1); filter: brightness(1); }
+      100% { transform: scale(1.03); filter: brightness(1.2) drop-shadow(0 0 10px var(--crimson)); }
+    }
+
+    .tile-num {
+      font-size: 0.65rem; font-weight: 800; letter-spacing: 1px; color: rgba(255,255,255,0.7);
+      text-transform: uppercase;
+    }
+    .tile-svg {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 44px; height: 44px; opacity: 0.22; pointer-events: none;
+    }
+    .tile-svg svg { width: 100%; height: 100%; fill: #fff; }
+
+    .tile-tag {
+      font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 6px;
+      align-self: flex-start; z-index: 2; background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pawn-container { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; z-index: 3; }
+    .alpinist-pawn {
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+      font-weight: 900; color: #fff; box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .blizzard-beacon {
+      position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(90deg, var(--crimson), #c0392b); color: white;
+      padding: 3px 10px; border-radius: 20px; font-size: 0.6rem; font-weight: 900;
+      letter-spacing: 1px; text-transform: uppercase;
+      box-shadow: 0 0 14px var(--crimson); white-space: nowrap; z-index: 4;
+      display: flex; align-items: center; gap: 4px; animation: pulseBeacon 1.2s infinite ease-in-out;
+    }
+    @keyframes pulseBeacon {
+      0%, 100% { transform: translateX(-50%) scale(1); }
+      50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 0 20px #ff6b6b; }
+    }
+
+    .alpinists-strip {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;
+    }
+    .climber-card {
+      background: var(--surface); border-radius: 14px; padding: 10px 12px;
+      border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px;
+      transition: all 0.2s;
+    }
+    .climber-card.current-turn {
+      border-color: var(--gold); box-shadow: 0 0 16px var(--gold-glow); background: var(--surface-elevated);
+    }
+    .climber-header { display: flex; justify-content: space-between; align-items: center; }
+    .climber-name { font-size: 0.8rem; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+    .climber-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .climber-stats { font-size: 0.75rem; color: var(--text-subtle); display: flex; justify-content: space-between; }
+
+    .contract-card {
+      background: linear-gradient(135deg, rgba(29, 38, 54, 0.8), rgba(20, 27, 38, 0.8));
+      border: 1px solid rgba(144, 224, 239, 0.25); border-radius: 14px; padding: 14px 18px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .contract-top { display: flex; justify-content: space-between; align-items: center; }
+    .progress-pill {
+      background: rgba(244, 162, 97, 0.2); border: 1px solid var(--gold);
+      color: var(--gold); font-size: 0.75rem; font-weight: 900; padding: 3px 10px;
+      border-radius: 12px; letter-spacing: 0.5px;
+    }
+    .progress-pill.done {
+      background: rgba(82, 183, 136, 0.25); border-color: #52b788; color: #52b788;
+    }
+    .progress-bar-bg {
+      width: 100%; height: 5px; background: rgba(255, 255, 255, 0.08); border-radius: 4px; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; background: linear-gradient(90deg, var(--gold), #f39c12);
+      width: 0%; transition: width 0.3s ease;
+    }
+
+    .pack-section { display: flex; flex-direction: column; gap: 8px; }
+    .section-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text-subtle); }
+    .pack-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; min-height: 118px; }
+
+    .equip-card {
+      width: 78px; height: 112px; border-radius: 12px; padding: 8px; flex-shrink: 0;
+      display: flex; flex-direction: column; justify-content: space-between;
+      border: 2px solid transparent; cursor: pointer; user-select: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); position: relative;
+    }
+    .equip-card:active { transform: scale(0.94); }
+    .equip-card.selected {
+      border-color: var(--gold); transform: translateY(-8px); box-shadow: 0 8px 18px var(--gold-glow);
+    }
+    .equip-card.FORET { background: linear-gradient(145deg, #1f4733, #0f261b); border-left: 3px solid #52b788; }
+    .equip-card.RIVIERE { background: linear-gradient(145deg, #16324f, #0c1c2c); border-left: 3px solid #48cae4; }
+    .equip-card.ROCHE { background: linear-gradient(145deg, #373a4d, #1c1d29); border-left: 3px solid #b8c0ff; }
+
+    .card-biome-name { font-size: 0.65rem; font-weight: 900; letter-spacing: 0.5px; }
+    .card-center-icon { width: 28px; height: 28px; margin: auto; opacity: 0.3; }
+    .card-center-icon svg { width: 100%; height: 100%; fill: #fff; }
+
+    .action-dock {
+      position: fixed; bottom: 0; left: 0; right: 0; background: rgba(14, 19, 28, 0.94);
+      backdrop-filter: blur(20px); border-top: 1px solid var(--border);
+      padding: 12px 16px; z-index: 50; display: flex; justify-content: center;
+    }
+    .dock-inner {
+      max-width: 900px; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    }
+    .dock-btn {
+      background: var(--surface-elevated); color: white; border: 1px solid var(--border);
+      padding: 14px 8px; border-radius: 14px; font-family: 'Cabinet Grotesk', sans-serif;
+      font-size: 0.95rem; font-weight: 900; letter-spacing: 1px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .dock-btn:active:not(:disabled) { transform: scale(0.96); background: var(--surface); }
+    .dock-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .dock-btn span { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.65rem; font-weight: 600; color: var(--text-subtle); }
+    .dock-btn.btn-scout { border-bottom: 3px solid var(--gold); }
+    .dock-btn.btn-follow { border-bottom: 3px solid var(--ice); }
+    .dock-btn.btn-rest { border-bottom: 3px solid var(--crimson); }
+
+    .step-modal {
+      display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px); justify-content: center; align-items: center; z-index: 100; padding: 16px;
+    }
+    .step-box {
+      background: var(--surface); border: 1px solid var(--gold); border-radius: 20px;
+      padding: 24px; width: 100%; max-width: 440px; text-align: center;
+      display: flex; flex-direction: column; gap: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+    }
+    .step-box h3 { font-family: 'Cabinet Grotesk', sans-serif; font-size: 1.25rem; font-weight: 900; }
+    .step-actions { display: flex; gap: 12px; justify-content: center; }
+    .step-choice-btn {
+      flex: 1; padding: 14px 0; border-radius: 12px; background: var(--surface-elevated);
+      border: 1px solid var(--border); color: white; font-weight: 800; font-size: 1.1rem;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .step-choice-btn:active { background: var(--gold); color: #000; }
+
+    /* Modale Tableau de Dépouillement */
+    .ceremony-box {
+      background: var(--surface); border: 2px solid var(--gold); border-radius: 22px;
+      padding: 22px 18px; width: 100%; max-width: 640px; text-align: center;
+      display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+      max-height: 92vh; overflow-y: auto;
+    }
+    
+    .table-container {
+      width: 100%; border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
+      background: var(--surface-elevated); margin: 6px 0;
+    }
+    .score-table {
+      width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: left;
+    }
+    .score-table th {
+      background: rgba(0,0,0,0.4); padding: 10px 8px; font-weight: 800; color: var(--text-subtle);
+      border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.5px;
+    }
+    .score-table td {
+      padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle;
+    }
+    .score-table tr:last-child td { border-bottom: none; }
+    
+    .card-flip-slot {
+      display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 8px;
+      font-weight: 800; font-size: 0.75rem; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .card-flip-slot.hidden-contract {
+      background: rgba(255,255,255,0.08); color: var(--text-subtle); border: 1px dashed rgba(255,255,255,0.2);
+    }
+    .card-flip-slot.revealed-ok {
+      background: rgba(82, 183, 136, 0.25); color: #52b788; border: 1px solid #52b788;
+      transform: scale(1.04);
+    }
+    .card-flip-slot.revealed-ko {
+      background: rgba(231, 111, 81, 0.2); color: var(--crimson); border: 1px solid var(--crimson);
+      transform: scale(0.98); opacity: 0.85;
+    }
+
+    .suspense-box {
+      font-family: 'Cabinet Grotesk', sans-serif; font-size: 1.1rem; font-weight: 900;
+      color: var(--gold); min-height: 28px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+
+    .journal-box {
+      background: rgba(14, 19, 28, 0.6); border-radius: 14px; border: 1px solid var(--border);
+      padding: 12px 14px; height: 120px; overflow-y: auto; display: flex; flex-direction: column;
+      gap: 6px; font-size: 0.75rem;
+    }
+    .log-entry { color: var(--text-subtle); line-height: 1.4; }
+    .log-entry.gold { color: var(--gold); font-weight: 700; }
+    .log-entry.red { color: var(--crimson); font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <canvas id="storm-canvas"></canvas>
+
+  <div class="toast-overlay" id="action-toast">
+    <div class="toast-author" id="toast-author">GUIDE</div>
+    <div class="toast-msg" id="toast-msg">Action</div>
+    <div class="toast-detail" id="toast-detail">Détail</div>
+  </div>
+
+  <div class="app-shell">
+    <header class="top-bar">
+      <div class="brand-title">
+        <span>🏔️</span> PISTEURS
+      </div>
+      <div class="game-pills">
+        <div class="pill pill-clickable pill-reset" onclick="resetCurrentGame()">↺ Recommencer</div>
+        <div class="pill pill-clickable pill-mode" onclick="cyclePlayerMode()" id="mode-pill">4 Joueurs</div>
+        <div class="pill">Manche <span id="round-idx" style="color:var(--gold);">1</span></div>
+      </div>
+    </header>
+
+    <div class="ticker-bar">
+      <div class="ticker-text">
+        <div class="ticker-pulse"></div>
+        <span id="ticker-msg">Ascension v3.5 en cours...</span>
+      </div>
+      <span id="turn-badge" style="font-size: 0.75rem; font-weight: 800; color: var(--gold);">VOTRE TOUR</span>
+    </div>
+
+    <div class="trail-viewport" id="trail-viewport">
+      <div class="trail-track" id="trail-board"></div>
+    </div>
+
+    <div class="alpinists-strip" id="climbers-grid"></div>
+
+    <div class="contract-card" id="contract-box">
+      <div class="contract-top">
+        <div>
+          <div style="font-size: 0.7rem; font-weight: 800; color: var(--text-subtle); text-transform: uppercase;">Mon Contrat Secret (+4 Rép)</div>
+          <div id="contract-text" style="font-weight: 700; margin-top: 2px;">Chargement...</div>
+        </div>
+        <div class="progress-pill" id="contract-progress-badge">0/0</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="contract-progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="pack-section">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <span class="section-title">Ma Besace (Max 5)</span>
+        <span style="font-size: 0.7rem; color: var(--text-subtle);">Touchez pour sélectionner</span>
+      </div>
+      <div class="pack-row" id="user-hand"></div>
+    </div>
+
+    <div class="pack-section">
+      <span class="section-title">Tuiles en vigie (Réserve)</span>
+      <div class="pack-row" id="reserve-rack"></div>
+    </div>
+
+    <div class="pack-section">
+      <span class="section-title">Chronique de l'expédition</span>
+      <div class="journal-box" id="journal-log"></div>
+    </div>
+  </div>
+
+  <div class="action-dock">
+    <div class="dock-inner">
+      <button class="dock-btn btn-scout" id="btn-scout" onclick="triggerScout()">
+        ÉCLAIREUR
+        <span>2 cartes • Ouvrir</span>
+      </button>
+      <button class="dock-btn btn-follow" id="btn-follow" onclick="triggerFollow()">
+        SUIVRE
+        <span>1 carte • Relayer</span>
+      </button>
+      <button class="dock-btn btn-rest" id="btn-rest" onclick="triggerRest()">
+        SE REPOSER
+        <span>+2 cartes • Camp</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="step-modal" id="scout-modal">
+    <div class="step-box">
+      <h3>Choisir la tuile à ouvrir</h3>
+      <p style="font-size: 0.85rem; color: var(--text-subtle);">Sélectionnez le terrain à poser au bout du sentier :</p>
+      <div class="step-actions" id="scout-options"></div>
+      <button onclick="closeScoutModal()" style="background:transparent; border:none; color:var(--text-subtle); font-weight:700; cursor:pointer;">Annuler</button>
+    </div>
+  </div>
+
+  <div class="step-modal" id="step-modal">
+    <div class="step-box">
+      <h3>Longueur du relais</h3>
+      <p style="font-size: 0.85rem; color: var(--text-subtle);">De combien de tuiles souhaitez-vous progresser ?</p>
+      <div class="step-actions" id="step-actions"></div>
+      <button onclick="closeModal()" style="background:transparent; border:none; color:var(--text-subtle); font-weight:700; cursor:pointer;">Annuler</button>
+    </div>
+  </div>
+
+  <!-- Modale Dépouillement Général en Tableau -->
+  <div class="step-modal" id="ceremony-modal">
+    <div class="ceremony-box">
+      <h3 style="font-family:'Cabinet Grotesk',sans-serif; color:var(--gold); font-size:1.4rem; letter-spacing:1px;">DÉPOUILLEMENT DU SOMMET</h3>
+      <div class="suspense-box" id="suspense-status">Révélation des contrats secrets...</div>
+      
+      <div class="table-container">
+        <table class="score-table">
+          <thead>
+            <tr>
+              <th>Cordée</th>
+              <th>Base</th>
+              <th>Contrat Secret</th>
+              <th>Bonus</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+          </thead>
+          <tbody id="ceremony-table-body"></tbody>
+        </table>
+      </div>
+
+      <div id="podium-zone" style="display:none; margin-top:4px;"></div>
+
+      <button id="ceremony-btn" class="step-choice-btn" onclick="nextCeremonyStep()" style="display:none;">Fermer & Rejouer</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('storm-canvas');
+    const ctx = canvas.getContext('2d');
+    let flakes = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    for (let i = 0; i < 45; i++) {
+      flakes.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 2 + 1,
+        d: Math.random() + 0.5,
+        v: Math.random() * 2 + 1
+      });
+    }
+
+    function renderBlizzard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.beginPath();
+      for (let f of flakes) {
+        ctx.moveTo(f.x, f.y);
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+        f.y += f.v;
+        f.x -= f.d;
+        if (f.y > canvas.height) f.y = -5;
+        if (f.x < 0) f.x = canvas.width + 5;
+      }
+      ctx.fill();
+      requestAnimationFrame(renderBlizzard);
+    }
+    renderBlizzard();
+
+    const TERRAINS = ["FORET", "RIVIERE", "ROCHE"];
+    const PLAYER_COLORS = ["#e76f51", "#457b9d", "#2a9d8f", "#f4a261"];
+    const HAND_LIMIT = 5;
+    const BOT_DELAY = 2800;
+
+    const SVG_ICONS = {
+      FORET: `<svg viewBox="0 0 24 24"><path d="M12 2L4 14h5v6h6v-6h5L12 2z"/></svg>`,
+      RIVIERE: `<svg viewBox="0 0 24 24"><path d="M2 13c3 0 4-2 7-2s4 2 7 2 4-2 6-2v3c-2 0-3 2-6 2s-4-2-7-2-4 2-7 2H2v-3z"/></svg>`,
+      ROCHE: `<svg viewBox="0 0 24 24"><path d="M14 2l6 18H4l7-12 3 5 3-5-3-6z"/></svg>`
+    };
+
+    const OBJECTIFS_V33 = [
+      { id: 1, name: "Bûcheron des cimes", template: "Avoir ouvert {val} tuiles Forêt", avail: [3, 4], targets: { 3: 2, 4: 1 } },
+      { id: 2, name: "Hydrographe", template: "Avoir ouvert {val} tuiles Rivière", avail: [3, 4], targets: { 3: 2, 4: 1 } },
+      { id: 3, name: "Cristallier", template: "Avoir ouvert {val} tuiles Roche", avail: [3, 4], targets: { 3: 2, 4: 1 } },
+      { id: 4, name: "Naturaliste complet", template: "Avoir ouvert au moins 1 tuile de chaque biome", avail: [3], targets: { 3: 3 } },
+      { id: 5, name: "Ouvreur infatigable", template: "Avoir ouvert {val} tuiles ou plus", avail: [3], targets: { 3: 4 } },
+      { id: 6, name: "Spécialiste", template: "Avoir ouvert {val} tuiles du même biome (au choix)", avail: [4], targets: { 4: 2 } },
+      { id: 7, name: "Maître du matériel", template: "Avoir réalisé {val} Paires Parfaites", avail: [3, 4], targets: { 3: 2, 4: 2 } },
+      { id: 8, name: "Voyageur ultra-léger", template: "Terminer avec {val} cartes ou moins en main", avail: [3, 4], targets: { 3: 1, 4: 2 } },
+      { id: 9, name: "Porteur solidaire", template: "Avoir joué {val} actions Suivre au total", avail: [3, 4], targets: { 3: 6, 4: 7 } },
+      { id: 10, name: "Prévoyant", template: "Avoir atteint 5 cartes en main {val} fois", avail: [3, 4], targets: { 3: 3, 4: 3 } },
+      { id: 11, name: "Bivouac héroïque", template: "S'être reposé {val} fois ou plus", avail: [3, 4], targets: { 3: 5, 4: 4 } },
+      { id: 12, name: "Sprint final", template: "Avoir ouvert la tuile {val}", avail: [3, 4], targets: { 3: "11 (Sommet)", 4: "10 ou 11" } }
+    ];
+
+    function getObjectiveText(obj, numPlayers) {
+      let target = obj.targets[numPlayers] || 1;
+      return obj.template.replace("{val}", target);
+    }
+
+    let state = {
+      numPlayers: 4,
+      totalTiles: 11,
+      round: 1,
+      turnOrder: [],
+      currentTurnIdx: 0,
+      placedTiles: [{ index: 0, terrain: null, openedBy: null }],
+      trailDeck: [],
+      visibleReserve: [],
+      terrainDeck: [],
+      terrainDiscard: [],
+      stormActive: false,
+      stormFirstIndex: 0,
+      gameOver: false,
+      finalRound: false,
+      selectedCards: [],
+      players: []
+    };
+
+    let pendingScoutCards = [];
+    let toastTimeout = null;
+    let botTurnTimer = null;
+
+    function showActionToast(authorName, authorColor, mainAction, detail) {
+      const toast = document.getElementById("action-toast");
+      const authorEl = document.getElementById("toast-author");
+      const msgEl = document.getElementById("toast-msg");
+      const detailEl = document.getElementById("toast-detail");
+
+      authorEl.textContent = authorName;
+      authorEl.style.color = authorColor;
+      toast.style.borderColor = authorColor;
+      toast.style.boxShadow = `0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px ${authorColor}44`;
+
+      msgEl.textContent = mainAction;
+      detailEl.textContent = detail || "";
+
+      toast.classList.add("visible");
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => toast.classList.remove("visible"), 2400);
+    }
+
+    function resetCurrentGame() {
+      if (botTurnTimer) {
+        clearTimeout(botTurnTimer);
+        botTurnTimer = null;
+      }
+      document.getElementById('ceremony-modal').style.display = "none";
+      initGame(state.numPlayers);
+    }
+
+    function cyclePlayerMode() {
+      let nextMode = (state.numPlayers === 4) ? 3 : 4;
+      initGame(nextMode);
+    }
+
+    function initGame(numPlayers = 4) {
+      if (botTurnTimer) {
+        clearTimeout(botTurnTimer);
+        botTurnTimer = null;
+      }
+
+      state.numPlayers = numPlayers;
+      state.totalTiles = 11;
+      state.round = 1;
+      state.placedTiles = [{ index: 0, terrain: null, openedBy: null }];
+      state.stormActive = false;
+      state.stormFirstIndex = 0;
+      state.gameOver = false;
+      state.finalRound = false;
+      state.selectedCards = [];
+      pendingScoutCards = [];
+
+      state.terrainDeck = [];
+      for (let t of TERRAINS) for (let i = 0; i < 20; i++) state.terrainDeck.push(t);
+      shuffle(state.terrainDeck);
+      state.terrainDiscard = [];
+
+      let guaranteed = ["FORET", "FORET", "RIVIERE", "RIVIERE", "ROCHE", "ROCHE"];
+      let pool = ["FORET", "FORET", "FORET", "FORET", "RIVIERE", "RIVIERE", "RIVIERE", "RIVIERE", "ROCHE", "ROCHE", "ROCHE", "ROCHE"];
+      shuffle(pool);
+      let allTiles = guaranteed.concat(pool.slice(0, 5));
+      shuffle(allTiles);
+      state.visibleReserve = allTiles.slice(0, 2);
+      state.trailDeck = allTiles.slice(2);
+
+      let validObjectives = OBJECTIFS_V33.filter(o => o.avail.includes(numPlayers));
+      shuffle(validObjectives);
+
+      state.players = [];
+      for (let i = 0; i < numPlayers; i++) {
+        state.players.push({
+          id: i,
+          name: i === 0 ? "Vous (Guide)" : `IA Guide ${i+1}`,
+          isHuman: i === 0,
+          color: PLAYER_COLORS[i],
+          reputation: 0,
+          position: 0,
+          hand: [],
+          objective: validObjectives[i],
+          restedPrevRound: false,
+          restedThisRound: false,
+          restCount: 0,
+          followActionCount: 0,
+          exactPairBonusCount: 0,
+          tilesOpened: [],
+          maxHandCount: 0,
+          tempestPenalties: 0
+        });
+      }
+
+      state.turnOrder = state.players.map(p => p.id);
+      shuffle(state.turnOrder);
+
+      state.turnOrder.forEach(pid => {
+        let p = state.players[pid];
+        let startCards = (pid === state.turnOrder[state.numPlayers - 1]) ? 4 : 3;
+        for (let c = 0; c < startCards; c++) p.hand.push(state.terrainDeck.pop());
+      });
+
+      document.getElementById('mode-pill').textContent = `${numPlayers} Joueurs`;
+      log(`Départ au camp de base (${numPlayers} cordées, Sentier à 11 tuiles).`, "gold");
+      showActionToast("EXPÉDITION V3.5", "var(--gold)", `Mode ${numPlayers} Joueurs`, `Tempête dès Tuile 3 • Tableau de fin animé`);
+      
+      updateUI();
+      checkTurn();
+    }
+
+    function checkTurn() {
+      if (state.gameOver) return;
+      let activePid = state.turnOrder[state.currentTurnIdx];
+      let activeP = state.players[activePid];
+      updateUI();
+
+      if (!activeP.isHuman) {
+        setTicker(`Progression de ${activeP.name}...`);
+        botTurnTimer = setTimeout(() => botTurn(activeP), BOT_DELAY);
+      } else {
+        setTicker(`Votre tour : choisissez votre action.`);
+      }
+    }
+
+    function botTurn(bot) {
+      let lastPlaced = state.placedTiles.length - 1;
+      let canScout = bot.hand.length >= 2 && bot.position === lastPlaced && lastPlaced < state.totalTiles;
+      let canFollow = bot.hand.length >= 1 && bot.position < lastPlaced;
+      let canRest = !bot.restedPrevRound;
+
+      if (canScout) {
+        let matchingTerrain = state.visibleReserve.find(resT => bot.hand.filter(c => c === resT).length >= 2) || state.visibleReserve[0];
+        let resIdx = state.visibleReserve.indexOf(matchingTerrain);
+        let disc = [bot.hand[0], bot.hand[1]];
+        executeScout(bot, resIdx, disc);
+      } else if (canFollow && (lastPlaced - bot.position >= 2 || bot.hand.length > 2)) {
+        let steps = Math.min(3, lastPlaced - bot.position);
+        executeFollow(bot, steps, bot.hand[0]);
+      } else if (canRest) {
+        executeRest(bot);
+      } else if (canFollow) {
+        executeFollow(bot, 1, bot.hand[0]);
+      } else {
+        log(`${bot.name} passe son tour.`);
+      }
+      advanceTurn();
+    }
+
+    function executeScout(player, reserveIdx, discardedCards) {
+      discardedCards.forEach(c => {
+        let idx = player.hand.indexOf(c);
+        if (idx !== -1) player.hand.splice(idx, 1);
+        state.terrainDiscard.push(c);
+      });
+
+      let terrain = state.visibleReserve.splice(reserveIdx, 1)[0];
+      let newIdx = state.placedTiles.length;
+      state.placedTiles.push({ index: newIdx, terrain: terrain, openedBy: player.id });
+      player.position = newIdx;
+      player.tilesOpened.push(newIdx);
+
+      let gain = 3;
+      let matches = discardedCards.filter(c => c === terrain).length;
+      let isPair = matches === 2;
+      if (isPair) {
+        gain += 2;
+        player.exactPairBonusCount++;
+      }
+      
+      if (newIdx === state.totalTiles) {
+        gain += 1;
+        state.finalRound = true;
+        log(`🏆 ${player.name} a ouvert le Sommet (Tuile ${state.totalTiles}) !`, "gold");
+      }
+
+      player.reputation += gain;
+      log(`${player.name} ouvre la Tuile ${newIdx} (${terrain}) : +${gain} Rép ${isPair ? '[Paire Parfaite !]' : ''}`, "gold");
+
+      showActionToast(
+        player.name,
+        player.color,
+        `Éclaireur : Tuile ${newIdx} (${terrain})`,
+        `+${gain} Réputation ${isPair ? '★ Paire Parfaite' : ''}`
+      );
+
+      if (newIdx >= 3 && !state.stormActive) {
+        state.stormActive = true;
+        log(`❄️ Le front de Tempête s'abat sur le sentier dès la fin de cette manche !`, "red");
+      }
+
+      if (state.trailDeck.length > 0) state.visibleReserve.push(state.trailDeck.shift());
+    }
+
+    function executeFollow(player, steps, cardPaid) {
+      let idx = player.hand.indexOf(cardPaid);
+      if (idx !== -1) player.hand.splice(idx, 1);
+      player.followActionCount++;
+      player.position += steps;
+
+      let detailTransfer = "";
+      let others = state.players.filter(p => p.id !== player.id);
+      let minRep = Math.min(...others.map(p => p.reputation));
+
+      if (player.reputation < minRep) {
+        state.terrainDiscard.push(cardPaid);
+        detailTransfer = `Péage ${cardPaid} défaussé (strictement le moins de Réputation)`;
+      } else {
+        let cands = others.filter(p => p.reputation === minRep);
+        let recipient = cands.sort((a,b) => a.position - b.position)[0];
+        
+        if (recipient.id === player.id) {
+          state.terrainDiscard.push(cardPaid);
+          detailTransfer = `Péage ${cardPaid} défaussé (pas d'auto-paiement)`;
+        } else {
+          addCards(recipient, [cardPaid]);
+          detailTransfer = `Carte ${cardPaid} donnée à ${recipient.name}`;
+          log(`${player.name} remet son péage à ${recipient.name}.`);
+        }
+      }
+      log(`${player.name} suit le sentier de +${steps} tuile(s).`);
+
+      showActionToast(
+        player.name,
+        player.color,
+        `Suivre : +${steps} Tuile${steps > 1 ? 's' : ''}`,
+        detailTransfer
+      );
+    }
+
+    function executeRest(player) {
+      player.restCount++;
+      player.restedThisRound = true;
+      let drawn = [drawCard(), drawCard()].filter(Boolean);
+      addCards(player, drawn);
+      log(`${player.name} monte le bivouac (+2 cartes).`);
+
+      showActionToast(player.name, player.color, `Se Reposer`, `Bivouac • Pioche 2 cartes`);
+    }
+
+    function advanceTurn() {
+      state.currentTurnIdx++;
+      if (state.currentTurnIdx >= state.turnOrder.length) {
+        resolveRoundEnd();
+      } else {
+        checkTurn();
+      }
+    }
+
+    function resolveRoundEnd() {
+      if (state.stormActive && !state.finalRound) {
+        let lastIdx = state.placedTiles.length - 1;
+        
+        if (state.stormFirstIndex < lastIdx) {
+          let curr = state.stormFirstIndex;
+          state.placedTiles[curr].stormed = true;
+          state.stormFirstIndex++;
+
+          state.players.forEach(p => {
+            if (p.position === curr) {
+              p.position = state.stormFirstIndex;
+              p.reputation = Math.max(0, p.reputation - 2);
+              p.tempestPenalties++;
+              log(`❄️ Tempête : ${p.name} est balayé (-2 Rép, aucune carte)`, "red");
+              showActionToast("TEMPÊTE", "var(--crimson)", `${p.name} balayé !`, "-2 Réputation • Zéro consolation");
+            }
+          });
+        }
+      }
+
+      if (state.finalRound) {
+        concludeExpedition();
+        return;
+      }
+
+      state.players.forEach(p => {
+        p.restedPrevRound = p.restedThisRound;
+        p.restedThisRound = false;
+      });
+
+      state.round++;
+      state.currentTurnIdx = 0;
+      state.turnOrder.sort((a,b) => {
+        if (state.players[a].reputation !== state.players[b].reputation) {
+          return state.players[a].reputation - state.players[b].reputation;
+        }
+        return state.turnOrder.indexOf(b) - state.turnOrder.indexOf(a);
+      });
+
+      log(`--- Manche ${state.round} ---`, "gold");
+      checkTurn();
+    }
+
+    /* Déroulement complet en tableau avec suspense */
+    function concludeExpedition() {
+      state.gameOver = true;
+      document.getElementById('ceremony-modal').style.display = "flex";
+      document.getElementById('ceremony-btn').style.display = "none";
+      document.getElementById('podium-zone').style.display = "none";
+
+      const tbody = document.getElementById('ceremony-table-body');
+      tbody.innerHTML = "";
+
+      // Préparation initiale de chaque ligne (contrat masqué)
+      state.players.forEach((p, idx) => {
+        p.baseRep = p.reputation;
+        p.prog = getObjectiveProgress(p);
+        p.bonus = p.prog.done ? 4 : 0;
+        p.finalRep = p.baseRep + p.bonus;
+
+        let tr = document.createElement('tr');
+        tr.id = `ceremony-row-${idx}`;
+        tr.innerHTML = `
+          <td><strong style="color:${p.color};">${p.name}</strong></td>
+          <td style="font-weight:700;">${p.baseRep} pts</td>
+          <td><span class="card-flip-slot hidden-contract" id="slot-contract-${idx}">🎴 Contrat secret</span></td>
+          <td style="font-weight:700;" id="slot-bonus-${idx}">—</td>
+          <td style="text-align:right; font-weight:900; font-size:0.95rem;" id="slot-total-${idx}">${p.baseRep} pts</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      revealContractsProgressively(0);
+    }
+
+    function revealContractsProgressively(idx) {
+      if (idx < state.players.length) {
+        let p = state.players[idx];
+        document.getElementById('suspense-status').textContent = `Dépouillement de ${p.name}...`;
+
+        setTimeout(() => {
+          let slotC = document.getElementById(`slot-contract-${idx}`);
+          let slotB = document.getElementById(`slot-bonus-${idx}`);
+          let slotT = document.getElementById(`slot-total-${idx}`);
+
+          let ok = p.prog.done;
+          slotC.className = `card-flip-slot ${ok ? 'revealed-ok' : 'revealed-ko'}`;
+          slotC.innerHTML = `<strong>${p.objective.name}</strong> (${ok ? '✓ Validé' : '✗ Échoué'})`;
+
+          slotB.style.color = ok ? '#52b788' : 'var(--crimson)';
+          slotB.textContent = ok ? '+4 pts' : '0 pt';
+
+          slotT.style.color = 'var(--gold)';
+          slotT.textContent = `${p.finalRep} pts`;
+
+          revealContractsProgressively(idx + 1);
+        }, 1200);
+      } else {
+        // Phase de suspense pour le vainqueur
+        setTimeout(() => {
+          document.getElementById('suspense-status').textContent = `Calcul du classement général en cours... ⏳`;
+        }, 800);
+
+        setTimeout(() => {
+          proclaimWinner();
+        }, 2200);
+      }
+    }
+
+    function proclaimWinner() {
+      let ranked = [...state.players].sort((a,b) => {
+        if (b.finalRep !== a.finalRep) return b.finalRep - a.finalRep;
+        if (b.tilesOpened.length !== a.tilesOpened.length) return b.tilesOpened.length - a.tilesOpened.length;
+        return b.hand.length - a.hand.length;
+      });
+
+      let winner = ranked[0];
+      document.getElementById('suspense-status').innerHTML = `🏆 <span style="color:${winner.color}">${winner.name.toUpperCase()} REMPORTE L'EXPÉDITION !</span>`;
+
+      let podiumBox = document.getElementById('podium-zone');
+      podiumBox.style.display = "block";
+      podiumBox.innerHTML = `
+        <div style="background:var(--surface-elevated); border:1px solid var(--gold); border-radius:14px; padding:12px; font-size:0.85rem; line-height:1.4;">
+          <strong>Podium final :</strong> 
+          1er ${ranked[0].name} (${ranked[0].finalRep} pts) • 
+          2e ${ranked[1].name} (${ranked[1].finalRep} pts) • 
+          3e ${ranked[2].name} (${ranked[2].finalRep} pts)
+          ${ranked[3] ? ` • 4e ${ranked[3].name} (${ranked[3].finalRep} pts)` : ''}
+        </div>
+      `;
+
+      let btn = document.getElementById('ceremony-btn');
+      btn.style.display = "block";
+    }
+
+    function nextCeremonyStep() {
+      document.getElementById('ceremony-modal').style.display = "none";
+      resetCurrentGame();
+    }
+
+    function getObjectiveProgress(p) {
+      let n = state.numPlayers;
+      let tiles = p.tilesOpened.map(idx => state.placedTiles[idx]).filter(Boolean);
+      let countT = (type) => tiles.filter(t => t.terrain === type).length;
+      let o = p.objective;
+      let target = o.targets[n] || 1;
+      let current = 0, label = "", done = false;
+
+      if (o.id === 1) {
+        current = countT("FORET");
+        label = `${current}/${target} Forêt`;
+        done = current >= target;
+      } else if (o.id === 2) {
+        current = countT("RIVIERE");
+        label = `${current}/${target} Rivière`;
+        done = current >= target;
+      } else if (o.id === 3) {
+        current = countT("ROCHE");
+        label = `${current}/${target} Roche`;
+        done = current >= target;
+      } else if (o.id === 4) {
+        current = (countT("FORET") > 0 ? 1 : 0) + (countT("RIVIERE") > 0 ? 1 : 0) + (countT("ROCHE") > 0 ? 1 : 0);
+        target = 3;
+        label = `${current}/3 Biomes`;
+        done = current >= 3;
+      } else if (o.id === 5) {
+        current = tiles.length;
+        target = 4;
+        label = `${current}/4 Ouvertes`;
+        done = current >= 4;
+      } else if (o.id === 6) {
+        current = Math.max(countT("FORET"), countT("RIVIERE"), countT("ROCHE"));
+        label = `${current}/${target} Même Biome`;
+        done = current >= target;
+      } else if (o.id === 7) {
+        current = p.exactPairBonusCount;
+        label = `${current}/${target} Paires Parfaites`;
+        done = current >= target;
+      } else if (o.id === 8) {
+        current = p.hand.length;
+        done = current <= target;
+        label = `${current} en main (cible ≤ ${target})`;
+      } else if (o.id === 9) {
+        current = p.followActionCount;
+        label = `${current}/${target} Suivre`;
+        done = current >= target;
+      } else if (o.id === 10) {
+        current = p.maxHandCount;
+        label = `${current}/${target} Fois à 5 cartes`;
+        done = current >= target;
+      } else if (o.id === 11) {
+        current = p.restCount;
+        label = `${current}/${target} Repos`;
+        done = current >= target;
+      } else if (o.id === 12) {
+        if (n === 3) {
+          done = p.tilesOpened.includes(11);
+          label = done ? "Tuile 11 ouverte" : "Tuile 11 non ouverte";
+        } else {
+          done = p.tilesOpened.includes(10) || p.tilesOpened.includes(11);
+          label = done ? "Tuile 10 ou 11 ouverte" : "Tuiles 10/11 non ouvertes";
+        }
+        current = done ? 1 : 0; target = 1;
+      }
+
+      let pct = Math.min(100, Math.round((current / (typeof target === 'number' ? target : 1)) * 100));
+      if (done) pct = 100;
+      return { current, target, label, done, pct };
+    }
+
+    function addCards(p, cards) {
+      let wasUnder = p.hand.length < HAND_LIMIT;
+      cards.forEach(c => {
+        if (p.hand.length < HAND_LIMIT) {
+          p.hand.push(c);
+        } else {
+          state.terrainDiscard.push(c);
+        }
+      });
+      if (wasUnder && p.hand.length === HAND_LIMIT) p.maxHandCount++;
+    }
+
+    function drawCard() {
+      if (state.terrainDeck.length === 0) {
+        if (state.terrainDiscard.length === 0) return null;
+        state.terrainDeck = [...state.terrainDiscard];
+        state.terrainDiscard = [];
+        shuffle(state.terrainDeck);
+      }
+      return state.terrainDeck.pop();
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    function setTicker(msg) {
+      document.getElementById('ticker-msg').textContent = msg;
+    }
+
+    function log(msg, type = "") {
+      let c = document.getElementById("journal-log");
+      let d = document.createElement("div");
+      d.className = `log-entry ${type}`;
+      d.textContent = msg;
+      c.appendChild(d);
+      c.scrollTop = c.scrollHeight;
+    }
+
+    function toggleCard(idx) {
+      let pos = state.selectedCards.indexOf(idx);
+      if (pos !== -1) state.selectedCards.splice(pos, 1);
+      else if (state.selectedCards.length < 2) state.selectedCards.push(idx);
+      updateUI();
+    }
+
+    function triggerScout() {
+      let p = state.players[0];
+      if (state.selectedCards.length !== 2) {
+        alert("Sélectionnez exactement 2 cartes dans votre besace.");
+        return;
+      }
+      
+      pendingScoutCards = state.selectedCards.map(i => p.hand[i]);
+      let optBox = document.getElementById("scout-options");
+      optBox.innerHTML = "";
+
+      state.visibleReserve.forEach((terrain, idx) => {
+        let matches = pendingScoutCards.filter(c => c === terrain).length;
+        let isPair = (matches === 2);
+
+        let btn = document.createElement("button");
+        btn.className = `equip-card ${terrain}`;
+        btn.style.width = "120px";
+        btn.style.height = "125px";
+        btn.style.cursor = "pointer";
+        btn.style.display = "flex";
+        btn.style.flexDirection = "column";
+        btn.style.alignItems = "center";
+        btn.style.justifyContent = "space-between";
+        btn.style.padding = "10px";
+
+        btn.innerHTML = `
+          <span class="card-biome-name" style="font-size:0.75rem;">${terrain}</span>
+          <div class="card-center-icon" style="width:34px;height:34px;opacity:0.6;">${SVG_ICONS[terrain]}</div>
+          <span style="font-size:0.7rem; font-weight:800; color:${isPair ? 'var(--gold)' : 'white'};">
+            ${isPair ? '★ Paire (+5 Rép)' : '+3 Rép'}
+          </span>
+        `;
+
+        btn.onclick = () => confirmScout(idx);
+        optBox.appendChild(btn);
+      });
+
+      document.getElementById("scout-modal").style.display = "flex";
+    }
+
+    function closeScoutModal() {
+      document.getElementById("scout-modal").style.display = "none";
+      pendingScoutCards = [];
+    }
+
+    function confirmScout(reserveIdx) {
+      document.getElementById("scout-modal").style.display = "none";
+      let p = state.players[0];
+      let cards = [...pendingScoutCards];
+      pendingScoutCards = [];
+      state.selectedCards = [];
+      executeScout(p, reserveIdx, cards);
+      advanceTurn();
+    }
+
+    function triggerFollow() {
+      let p = state.players[0];
+      if (state.selectedCards.length !== 1) {
+        alert("Sélectionnez 1 carte pour payer le péage.");
+        return;
+      }
+      let maxSteps = Math.min(3, (state.placedTiles.length - 1) - p.position);
+      let optBox = document.getElementById("step-actions");
+      optBox.innerHTML = "";
+
+      for (let s = 1; s <= maxSteps; s++) {
+        let b = document.createElement("button");
+        b.className = "step-choice-btn";
+        b.textContent = `+${s}`;
+        b.onclick = () => confirmStep(s);
+        optBox.appendChild(b);
+      }
+      document.getElementById("step-modal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("step-modal").style.display = "none";
+    }
+
+    function confirmStep(steps) {
+      closeModal();
+      let p = state.players[0];
+      let card = p.hand[state.selectedCards[0]];
+      state.selectedCards = [];
+      executeFollow(p, steps, card);
+      advanceTurn();
+    }
+
+    function triggerRest() {
+      let p = state.players[0];
+      state.selectedCards = [];
+      executeRest(p);
+      advanceTurn();
+    }
+
+    function updateUI() {
+      document.getElementById('round-idx').textContent = state.round;
+      let activeP = state.players[state.turnOrder[state.currentTurnIdx]] || {};
+      let isUser = activeP.id === 0 && !state.gameOver;
+      
+      let badge = document.getElementById('turn-badge');
+      badge.textContent = isUser ? "VOTRE TOUR" : `${activeP.name.toUpperCase()}`;
+      badge.style.color = isUser ? "var(--gold)" : "var(--text-subtle)";
+
+      let boardEl = document.getElementById("trail-board");
+      boardEl.innerHTML = "";
+      for (let i = 0; i <= state.totalTiles; i++) {
+        let t = state.placedTiles[i];
+        let isStormFront = state.stormActive && state.stormFirstIndex === i;
+        let isFreezingEdge = state.stormActive && (state.stormFirstIndex + 1 === i) && i < state.placedTiles.length;
+
+        let extraClasses = [];
+        if (t && t.terrain) extraClasses.push(t.terrain);
+        else if (t) extraClasses.push('active');
+        if (t && t.stormed) extraClasses.push('stormed');
+        if (i === state.totalTiles) extraClasses.push('summit');
+        if (isStormFront) extraClasses.push('storm-animating');
+        if (isFreezingEdge) extraClasses.push('freezing-zone');
+
+        let tile = document.createElement("div");
+        tile.className = `tile-card ${extraClasses.join(' ')}`;
+        tile.id = `tile-node-${i}`;
+        
+        let art = (t && t.terrain) ? `<div class="tile-svg">${SVG_ICONS[t.terrain]}</div>` : '';
+        tile.innerHTML = `
+          <div class="tile-num">${i === 0 ? 'Camp 0' : (i === state.totalTiles ? '🏔️ Sommet' : 'Tuile ' + i)}</div>
+          ${art}
+          ${t && t.openedBy !== null ? `<div class="tile-tag" style="color:${state.players[t.openedBy].color}">J${t.openedBy+1}</div>` : ''}
+          <div class="pawn-container" id="pawns-box-${i}"></div>
+          ${isStormFront ? '<div class="blizzard-beacon">⚡ Tempête</div>' : ''}
+        `;
+        boardEl.appendChild(tile);
+      }
+
+      state.players.forEach(p => {
+        let pEl = document.createElement("div");
+        pEl.className = "alpinist-pawn";
+        pEl.style.backgroundColor = p.color;
+        pEl.textContent = p.id === 0 ? "V" : p.id + 1;
+        let box = document.getElementById(`pawns-box-${p.position}`);
+        if (box) box.appendChild(pEl);
+      });
+
+      let targetScrollIdx = Math.max(0, state.placedTiles.length - 1);
+      let targetTileEl = document.getElementById(`tile-node-${targetScrollIdx}`);
+      let viewport = document.getElementById("trail-viewport");
+      if (targetTileEl && viewport) {
+        let targetLeft = targetTileEl.offsetLeft - (viewport.clientWidth / 2) + (targetTileEl.clientWidth / 2);
+        viewport.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+      }
+
+      let strip = document.getElementById('climbers-grid');
+      strip.innerHTML = "";
+      state.players.forEach(p => {
+        let cCard = document.createElement('div');
+        cCard.className = `climber-card ${p.id === activeP.id ? 'current-turn' : ''}`;
+        cCard.innerHTML = `
+          <div class="climber-header">
+            <span class="climber-name">
+              <span class="climber-dot" style="background:${p.color}"></span>
+              ${p.name}
+            </span>
+            <span style="font-weight:900; color:var(--gold);">${p.reputation} pt</span>
+          </div>
+          <div class="climber-stats">
+            <span>Tuile ${p.position}</span>
+            <span>${p.hand.length} 🎴</span>
+          </div>
+        `;
+        strip.appendChild(cCard);
+      });
+
+      let user = state.players[0];
+      if (user && user.objective) {
+        let prog = getObjectiveProgress(user);
+        let dynamicDesc = getObjectiveText(user.objective, state.numPlayers);
+        document.getElementById('contract-text').textContent = `${user.objective.name} : ${dynamicDesc}`;
+        let badgeEl = document.getElementById('contract-progress-badge');
+        let fillEl = document.getElementById('contract-progress-fill');
+
+        badgeEl.textContent = prog.label;
+        if (prog.done) {
+          badgeEl.classList.add('done');
+        } else {
+          badgeEl.classList.remove('done');
+        }
+        fillEl.style.width = `${prog.pct}%`;
+      }
+
+      let handEl = document.getElementById('user-hand');
+      handEl.innerHTML = "";
+      if (user && user.hand) {
+        user.hand.forEach((c, idx) => {
+          let card = document.createElement('div');
+          card.className = `equip-card ${c} ${state.selectedCards.includes(idx) ? 'selected' : ''}`;
+          card.onclick = () => toggleCard(idx);
+          card.innerHTML = `
+            <span class="card-biome-name">${c}</span>
+            <div class="card-center-icon">${SVG_ICONS[c]}</div>
+            <span style="font-size:0.55rem; color:rgba(255,255,255,0.6);">Équipement</span>
+          `;
+          handEl.appendChild(card);
+        });
+      }
+
+      let resEl = document.getElementById('reserve-rack');
+      resEl.innerHTML = "";
+      state.visibleReserve.forEach(resT => {
+        let card = document.createElement('div');
+        card.className = `equip-card ${resT}`;
+        card.style.cursor = "default";
+        card.innerHTML = `
+          <span class="card-biome-name">${resT}</span>
+          <div class="card-center-icon">${SVG_ICONS[resT]}</div>
+          <span style="font-size:0.55rem; color:rgba(255,255,255,0.6);">En vigie</span>
+        `;
+        resEl.appendChild(card);
+      });
+
+      let lastPlaced = state.placedTiles.length - 1;
+      document.getElementById("btn-scout").disabled = !isUser || user.position !== lastPlaced || lastPlaced >= state.totalTiles || user.hand.length < 2;
+      document.getElementById("btn-follow").disabled = !isUser || user.position >= lastPlaced || user.hand.length < 1;
+      document.getElementById("btn-rest").disabled = !isUser || user.restedPrevRound;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initGame(4);
+    });
+  </script>
+</body>
+</html>
